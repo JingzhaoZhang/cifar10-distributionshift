@@ -19,6 +19,11 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
+parser.add_argument('--when', nargs="+", type=int, default=[100, 150],
+                    help='When (which epochs) to divide the learning rate by 10 - accepts multiple')
+parser.add_argument('--save-dir', type=str,  default='default',
+                    help='path to save the final model')
+
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -55,7 +60,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 # net = VGG('VGG19')
-# net = ResNet18()
+net = ResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -67,7 +72,7 @@ print('==> Building model..')
 # net = SENet18()
 # net = ShuffleNetV2(1)
 # net = EfficientNetB0()
-net = RegNetX_200MF()
+# net = RegNetX_200MF()
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
@@ -94,6 +99,9 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
+    
+
+    
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
@@ -142,10 +150,18 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.pth')
+        if not os.path.isdir('checkpoint/%s' % args.save_dir):
+            os.mkdir('checkpoint/%s' % args.save_dir)            
+        torch.save(state, './checkpoint/%s/ckpt.pth' % args.save_dir)
+        torch.save(net.module.state_dict(), './checkpoint/%s/model.torch' % args.save_dir)
         best_acc = acc
 
 
 for epoch in range(start_epoch, start_epoch+200):
     train(epoch)
     test(epoch)
+    
+    if epoch in args.when:
+        print('Dividing learning rate by 10')
+        for g in optimizer.param_groups:
+            g['lr'] /= 10  
